@@ -1,0 +1,22 @@
+﻿<Window x:Class="TextEditor.Controls.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:TextEditor.Controls"
+        xmlns:viewModel="clr-namespace:TextEditor.ViewModel"
+        mc:Ignorable="d"
+        Title="TextEditor" Height="350" Width="525"
+        d:DataContext="{d:DesignInstance Type=viewModel:MainWindowViewModel, IsDesignTimeCreatable=False}">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <controls:TextControl x:Name="TextControl" Grid.Row="0" Grid.Column="0" DataContext="{Binding TextViewModel}"/>
+        <TextBlock x:Name="MainStatus" Grid.Row="1" Grid.Column="0" Text="{Binding Status}" />
+        <TextBlock x:Name="ScrollStatus" Grid.Row="1" Grid.Column="0" Text="{Binding Path=TextViewModel.ScrollBarViewModel.Status}" />
+    </Grid>
+</Window>
