@@ -11,6 +11,9 @@ namespace TextEditor.Controls
     /// </summary>
     public partial class TextControl
     {
+        /// <summary>
+        /// Initializes a new instance.
+        /// </summary>
         public TextControl()
         {
             var typeface = new Typeface(new FontFamily("Courier New"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);

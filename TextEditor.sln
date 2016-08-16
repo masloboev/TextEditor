@@ -1,9 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextEditor", "TextEditor\TextEditor.csproj", "{EE8E9A5D-DA1E-4CDF-8F09-D2754733E7B2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextEditor.UnitTests", "TextEditor.UnitTests\TextEditor.UnitTests.csproj", "{6DECF850-70CA-4A8C-B3A8-985DC1647B6B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextEditor.ModuleTests", "TextEditor.ModuleTests\TextEditor.ModuleTests.csproj", "{48269DD3-72D9-4F01-B42F-571134806285}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{EE8E9A5D-DA1E-4CDF-8F09-D2754733E7B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EE8E9A5D-DA1E-4CDF-8F09-D2754733E7B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EE8E9A5D-DA1E-4CDF-8F09-D2754733E7B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6DECF850-70CA-4A8C-B3A8-985DC1647B6B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DECF850-70CA-4A8C-B3A8-985DC1647B6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DECF850-70CA-4A8C-B3A8-985DC1647B6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DECF850-70CA-4A8C-B3A8-985DC1647B6B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48269DD3-72D9-4F01-B42F-571134806285}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48269DD3-72D9-4F01-B42F-571134806285}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48269DD3-72D9-4F01-B42F-571134806285}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48269DD3-72D9-4F01-B42F-571134806285}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,50 +1,46 @@
-﻿using System.Collections.Generic;
-using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using TextEditor.Attributes;
 using TextEditor.Model;
 using TextEditor.SupportModel;
 
 namespace TextEditor.ViewModel
 {
     /// <summary>
-    ///     Model for viewport calculated segment rows
+    /// ViewModel for presenting segments in viewport
     /// </summary>
-    public class SegmentViewModel
+    public class SegmentViewModel : ISegmentViewModel
     {
+        /// <summary>
+        /// The segment under model
+        /// </summary>
+        [NotNull]
         public ISegment Segment { get; }
+
         /// <summary>
         ///     Rows prepared for viewport
         /// </summary>
-        public List<Row> Rows { get; }
+        [NotNull]
+        public IReadOnlyList<Row> Rows { get; }
 
-        public SegmentViewModel(LineBreaker lineBreaker, ISegment segment)
+        /// <summary>
+        /// Initializes a new instance.
+        /// </summary>
+        /// <param name="lineBreaker">The line breaker used to break lines on content generation.</param>
+        /// <param name="segment">The segment under model</param>
+        /// <exception cref="ArgumentNullException">
+        /// </exception>
+        public SegmentViewModel([NotNull] ILineBreaker lineBreaker, [NotNull]  ISegment segment)
         {
+            if (lineBreaker == null) throw new ArgumentNullException(nameof(lineBreaker));
+            if (segment == null) throw new ArgumentNullException(nameof(segment));
+
             Segment = segment;
             Rows = lineBreaker.GetRows(Segment);
         }
 
         /// <summary>
-        ///     Method prints whole segment to contents builder
-        /// </summary>
-        /// <remarks>
-        ///     Methods prints different symbols depends on segment type
-        ///     ↓ nornal segments with paragraph end
-        ///     ⇣ bad segments separated by whitespace not paragraph.
-        ///     ⇃ segments with only one word 
-        /// </remarks>
-        public void WriteContent(RowWriter rowWriter, StringBuilder sb, int linePosition, int rowsCount)
-        {
-            for (var i = linePosition; i < linePosition + rowsCount; i++)
-            {
-                rowWriter.WriteRow(Rows[i], sb);
-                if (i == RowsCount - 1)
-                    sb.AppendLine(Segment.IsMonoWord ? "⇃" : Segment.EndsWithNewLine ? "↓" : "⇣");
-                else
-                    sb.AppendLine();
-            }
-        }
-
-        /// <summary>
-        ///     calculated segment height
+        ///     calculated segment rows in segment count
         /// </summary>
         public int RowsCount => Rows.Count;
     }

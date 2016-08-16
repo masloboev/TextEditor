@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using TextEditor.Attributes;
+using TextEditor.Model;
 using TextEditor.ViewModel;
 
 namespace TextEditor.SupportModel
@@ -9,9 +10,25 @@ namespace TextEditor.SupportModel
     /// <summary>
     ///     Model to present document part in control. Base idea is viewport that can move up and down over the document
     /// </summary>
-    public class Viewport
+    public class Viewport : IViewport
     {
-        private readonly TextViewModel _textViewModel;
+        /// <summary>
+        /// The document is viewported.
+        /// </summary>
+        [NotNull]
+        private readonly IDocument _document;
+
+        /// <summary>
+        /// The module factory
+        /// </summary>
+        [NotNull]
+        private readonly IModuleFactory _moduleFactory;
+
+        /// <summary>
+        /// The line breaker
+        /// </summary>
+        [NotNull]
+        private readonly ILineBreaker _lineBreaker;
 
         /// <summary>
         ///     How many rows of first segment is scrolled before viewport
@@ -31,42 +48,59 @@ namespace TextEditor.SupportModel
         /// <summary>
         ///     first calculated segment in the list
         /// </summary>
-        private SegmentViewModel FirstSegmentViewModel => SegmentViewModels[0];
+        [NotNull]
+        private ISegmentViewModel FirstSegmentViewModel => SegmentViewModels[0];
 
         /// <summary>
         ///     last calculated segment in the list
         /// </summary>
-        private SegmentViewModel LastSegmentViewModel => SegmentViewModels[SegmentViewModels.Count - 1];
+        [NotNull]
+        private ISegmentViewModel LastSegmentViewModel => SegmentViewModels[SegmentViewModels.Count - 1];
 
         /// <summary>
         ///     calculated segments list
         /// </summary>
-        public List<SegmentViewModel> SegmentViewModels;
+        [NotNull]
+        public List<ISegmentViewModel> SegmentViewModels;
 
         /// <summary>
-        ///     Constructor
+        /// Constructor
         /// </summary>
-        /// <param name="textViewModel">controls view model</param>
-        /// <param name="height">current height of the control in letters</param>
-        /// <param name="prevViewPort">reference for previous viewport to adjust scroll position</param>
-        public Viewport(TextViewModel textViewModel, int height, Viewport prevViewPort)
+        /// <param name="document">The document is viewported</param>
+        /// <param name="moduleFactory">The module factory.</param>
+        /// <param name="lineBreaker">The line breaker.</param>
+        /// <param name="rowsCount">current rows count in the control</param>
+        /// <param name="documentScrollPosition">The document scroll position.</param>
+        /// <exception cref="ArgumentNullException">
+        /// </exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        public Viewport([NotNull] IDocument document, [NotNull] IModuleFactory moduleFactory, ILineBreaker lineBreaker, 
+            int rowsCount, DocumentScrollPosition? documentScrollPosition)
         {
-            _textViewModel = textViewModel;
-            _rowsCount = height;
+            if (document == null) throw new ArgumentNullException(nameof(document));
+            if (moduleFactory == null) throw new ArgumentNullException(nameof(moduleFactory));
+            if (lineBreaker == null) throw new ArgumentNullException(nameof(lineBreaker));
+            if (rowsCount < 0) throw new ArgumentOutOfRangeException(nameof(rowsCount));
+
+            _document = document;
+            _lineBreaker = lineBreaker;
+            _moduleFactory = moduleFactory;
+
+            _rowsCount = rowsCount;
             RowsBeforeScrollCount = 0;
 
             // first visible segment selection
-            var firstSegment = prevViewPort != null ? prevViewPort.FirstSegmentViewModel.Segment : _textViewModel.Document.FirstSegment;
+            var firstSegment = documentScrollPosition.HasValue ? documentScrollPosition.Value.FirstSegment : _document.FirstSegment;
 
             _segmentViewModelsRowsCount = 0;
-            var segmentViewModel = new SegmentViewModel(_textViewModel.LineBreaker, firstSegment);
-            SegmentViewModels = new List<SegmentViewModel> { segmentViewModel };
+            var segmentViewModel = _moduleFactory.MakeSegmentViewModel(_lineBreaker, firstSegment);
+            SegmentViewModels = new List<ISegmentViewModel> { segmentViewModel };
             _segmentViewModelsRowsCount += segmentViewModel.RowsCount;
 
-            if (prevViewPort != null)
+            if (documentScrollPosition.HasValue)
             { // I find the position of row in segment to adjust new scroll position to the most same line
               // If i didn't found it I just reset to the begin of first segment
-                var textPosition = prevViewPort.FirstSegmentViewModel.Rows[prevViewPort.RowsBeforeScrollCount].BeginPosition;
+                var textPosition = documentScrollPosition.Value.SegmentOffset;
                 for (var i = 0; i < segmentViewModel.RowsCount; i++)
                     if (segmentViewModel.Rows[i].BeginPosition + segmentViewModel.Rows[i].Length > textPosition)
                     {
@@ -84,13 +118,13 @@ namespace TextEditor.SupportModel
         /// </summary>
         private void CleanUp()
         {
-            while (RowsBeforeScrollCount > FirstSegmentViewModel.RowsCount)
+            while (RowsBeforeScrollCount >= FirstSegmentViewModel.RowsCount && SegmentViewModels.Count > 1)
             { // cleanup segements before viewport
                 RowsBeforeScrollCount -= FirstSegmentViewModel.RowsCount;
                 _segmentViewModelsRowsCount -= FirstSegmentViewModel.RowsCount;
                 SegmentViewModels.RemoveAt(0);
             }
-            while (RowsAfterScrollCount > LastSegmentViewModel.RowsCount)
+            while (RowsAfterScrollCount >= LastSegmentViewModel.RowsCount && SegmentViewModels.Count > 1)
             {// cleanup segements after viewport
                 _segmentViewModelsRowsCount -= LastSegmentViewModel.RowsCount;
                 SegmentViewModels.RemoveAt(SegmentViewModels.Count - 1);
@@ -104,10 +138,10 @@ namespace TextEditor.SupportModel
         {
             if (RowsBeforeScrollCount < 0)
             { // We need segments in the beginning of viewport
-                var currentSegment = _textViewModel.Document.Prev(FirstSegmentViewModel.Segment);
+                var currentSegment = _document.Prev(FirstSegmentViewModel.Segment);
                 while (currentSegment != null)
                 {
-                    var segmentViewModel = new SegmentViewModel(_textViewModel.LineBreaker, currentSegment);
+                    var segmentViewModel = _moduleFactory.MakeSegmentViewModel(_lineBreaker, currentSegment);
                     SegmentViewModels.Insert(0, segmentViewModel);
                     _segmentViewModelsRowsCount += segmentViewModel.RowsCount;
                     RowsBeforeScrollCount += segmentViewModel.RowsCount;
@@ -118,7 +152,7 @@ namespace TextEditor.SupportModel
                         return;
                     }
 
-                    currentSegment = _textViewModel.Document.Prev(currentSegment);
+                    currentSegment = _document.Prev(currentSegment);
                 }
                 // We are on the first symbol of the document
                 RowsBeforeScrollCount = 0;
@@ -127,10 +161,10 @@ namespace TextEditor.SupportModel
             if (RowsAfterScrollCount < 0)
             {
                 // We need segments in the end of viewport
-                var currentSegment = _textViewModel.Document.Next(LastSegmentViewModel.Segment);
+                var currentSegment = _document.Next(LastSegmentViewModel.Segment);
                 while (currentSegment != null)
                 {
-                    var segmentViewModel = new SegmentViewModel(_textViewModel.LineBreaker, currentSegment);
+                    var segmentViewModel = _moduleFactory.MakeSegmentViewModel(_lineBreaker, currentSegment);
                     SegmentViewModels.Add(segmentViewModel);
                     _segmentViewModelsRowsCount += segmentViewModel.RowsCount;
 
@@ -139,13 +173,13 @@ namespace TextEditor.SupportModel
                         CleanUp();
                         return;
                     }
-                    currentSegment = _textViewModel.Document.Next(currentSegment);
+                    currentSegment = _document.Next(currentSegment);
                 }
                 // Not anought segments to fill the end part of the viewport
                 // Try to move and fill begin of the begin part of the viewport
                 RowsBeforeScrollCount = _segmentViewModelsRowsCount - _rowsCount;
                 if (RowsBeforeScrollCount < 0)
-                    if (FirstSegmentViewModel.Segment == _textViewModel.Document.FirstSegment)
+                    if (FirstSegmentViewModel.Segment == _document.FirstSegment)
                         RowsBeforeScrollCount = 0; // No data on begin. Just scroll
                     else
                     {
@@ -158,49 +192,55 @@ namespace TextEditor.SupportModel
         }
 
         /// <summary>
-        ///     Method makes a text to present in the control.
+        /// Method makes a text to present in the control.
         /// </summary>
-        public string MakeContent()
+        /// <param name="contentWriter">The content writer.</param>
+        /// <param name="symbolsInRowCount">TThe view symbols in row count.</param>
+        /// <returns>
+        /// viewport content
+        /// </returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        [return: NotNull]
+        public string MakeContent([NotNull] IContentWriter contentWriter, int symbolsInRowCount)
         {
-            var sb = new StringBuilder(_rowsCount * _textViewModel.SymbolsInRowCount); // Maximum symbols count in content
-            var segmentOffset = RowsBeforeScrollCount;
-            var rowsCount = 0;
-            foreach (var segmentViewModel in SegmentViewModels)
-            {
-                var rowsToWriteCount = Math.Min(_rowsCount - rowsCount, segmentViewModel.RowsCount - segmentOffset);
-                segmentViewModel.WriteContent(_textViewModel.RowWriter, sb, segmentOffset, rowsToWriteCount);
-                rowsCount += rowsToWriteCount;
-                if (rowsCount > _rowsCount)
-                    break;
-                segmentOffset = 0;
-            }
-            return sb.ToString();
-        }
+            if (contentWriter == null) throw new ArgumentNullException(nameof(contentWriter));
+            if (symbolsInRowCount <= 0) throw new ArgumentOutOfRangeException(nameof(symbolsInRowCount));
 
+            return contentWriter.MakeContent(RowsBeforeScrollCount, SegmentViewModels, Math.Min(_rowsCount, _segmentViewModelsRowsCount - RowsBeforeScrollCount), symbolsInRowCount);
+        }
 
         #region Scroll
 
         /// <summary>
         ///     Event that indicates that scrollinformation was changed (Neeeded for ScrollBarViewModel)
         /// </summary>
-        public event Action<ScrollPosition> EvScrollPositionChanged;
+        public event Action<RowsScrollPosition> EvScrollPositionChanged;
 
         /// <summary>
         ///     Gets the current scroll position ov the viewport
         /// </summary>
-        public ScrollPosition ScrollPosition => 
-            new ScrollPosition {FirstSegment = FirstSegmentViewModel.Segment, RowsBeforeScrollCount = RowsBeforeScrollCount };
+        [NotNull]
+        public RowsScrollPosition RowsScrollPosition => 
+            new RowsScrollPosition {FirstSegment = FirstSegmentViewModel.Segment, RowsBeforeScrollCount = RowsBeforeScrollCount };
+
+        /// <summary>
+        /// Document scroll poistion
+        /// </summary>
+        [NotNull]
+        public DocumentScrollPosition DocumentScrollPosition => 
+            new DocumentScrollPosition {FirstSegment = FirstSegmentViewModel.Segment, SegmentOffset = FirstSegmentViewModel.Rows[RowsBeforeScrollCount].BeginPosition };
 
         /// <summary>
         ///     Scrolls to specified position (By scrollbar)
         /// </summary>
-        public void ScrollTo(ScrollPosition scrollPosition)
+        public void ScrollTo(RowsScrollPosition rowsScrollPosition)
         {
             var skipSegmentsCount = 0;
             var segmentFound = false;
             // first whe suppose near scroll and we already can contain the proper calculated segments
             foreach (var segmentViewModel in SegmentViewModels)
-                if (segmentViewModel.Segment == scrollPosition.FirstSegment)
+                if (segmentViewModel.Segment == rowsScrollPosition.FirstSegment)
                 {
                     if (skipSegmentsCount > 0)
                     {
@@ -217,18 +257,18 @@ namespace TextEditor.SupportModel
             {
                 // It's far scroll. Just reset and rebuild viewport
                 SegmentViewModels.Clear();
-                SegmentViewModels.Add(new SegmentViewModel(_textViewModel.LineBreaker, scrollPosition.FirstSegment));
+                SegmentViewModels.Add(_moduleFactory.MakeSegmentViewModel(_lineBreaker, rowsScrollPosition.FirstSegment));
                 _segmentViewModelsRowsCount = FirstSegmentViewModel.RowsCount;
             }
-            RowsBeforeScrollCount = scrollPosition.RowsBeforeScrollCount;
+            RowsBeforeScrollCount = rowsScrollPosition.RowsBeforeScrollCount;
             Fix();
-            EvScrollPositionChanged?.Invoke(ScrollPosition);
+            EvScrollPositionChanged?.Invoke(RowsScrollPosition);
         }
 
         /// <remarks>
         /// We can scroll down when have rows after viewport or not calculated segemtns in document
         /// </remarks>
-        public bool CanScrollDown() => RowsAfterScrollCount > 0 || LastSegmentViewModel.Segment != _textViewModel.Document.LastSegment;
+        public bool CanScrollDown() => RowsAfterScrollCount > 0 || LastSegmentViewModel.Segment != _document.LastSegment;
 
         /// <summary>
         /// Scrolls down for specified distance in rows
@@ -237,13 +277,13 @@ namespace TextEditor.SupportModel
         {
             RowsBeforeScrollCount += distance;
             Fix();
-            EvScrollPositionChanged?.Invoke(ScrollPosition);
+            EvScrollPositionChanged?.Invoke(RowsScrollPosition);
         }
 
         /// <remarks>
         /// We can scroll up when have rows before viewport or not calculated segemtns in document
         /// </remarks>
-        public bool CanScrollUp() => RowsBeforeScrollCount > 0 || FirstSegmentViewModel.Segment != _textViewModel.Document.FirstSegment;
+        public bool CanScrollUp() => RowsBeforeScrollCount > 0 || FirstSegmentViewModel.Segment != _document.FirstSegment;
 
         /// <summary>
         /// Scrolls up for specified distance in rows
@@ -252,12 +292,15 @@ namespace TextEditor.SupportModel
         {
             RowsBeforeScrollCount -= distance;
             Fix();
-            EvScrollPositionChanged?.Invoke(ScrollPosition);
+            EvScrollPositionChanged?.Invoke(RowsScrollPosition);
         }
 
         #endregion
 
         #region View vertical resize
+        /// <summary>
+        /// Height of viewport in rows
+        /// </summary>
         private int _rowsCount;
 
         /// <summary>
@@ -280,11 +323,11 @@ namespace TextEditor.SupportModel
         /// <param name="rowsCount">new size of viewport in rows</param>
         private void SetRowsCount(int rowsCount)
         {
+            if (rowsCount < 0) throw new ArgumentOutOfRangeException(nameof(rowsCount));
+
             _rowsCount = rowsCount;
-            if (SegmentViewModels == null)
-                return;
             Fix();
-            EvScrollPositionChanged?.Invoke(ScrollPosition);
+            EvScrollPositionChanged?.Invoke(RowsScrollPosition);
         }
 
         #endregion

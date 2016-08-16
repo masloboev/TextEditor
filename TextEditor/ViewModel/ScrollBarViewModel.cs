@@ -1,5 +1,8 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using TextEditor.Attributes;
 using TextEditor.SupportModel;
 
 namespace TextEditor.ViewModel
@@ -7,72 +10,135 @@ namespace TextEditor.ViewModel
     /// <summary>
     ///     Viewmodel for main window
     /// </summary>
-    public class ScrollBarViewModel : INotifyPropertyChanged
+    public class ScrollBarViewModel : IScrollBarViewModel
     {
-        private TextViewModel _textViewModel;
-
         /// <summary>
-        ///     Reference to the cache of SegmentsRowsLayout
+        ///     Reference to the SegmentsRowsLayout provider
         /// </summary>
-        private SegmentsRowsLayoutCache _segmentsRowsLayoutCache;
+        /// <remarks>public only for tests</remarks>
+        [NotNull]
+        public ISegmentsRowsLayoutProvider SegmentsRowsLayoutProvider;
 
         /// <summary>
         ///     Reference to the current layout
         /// </summary>
-        private SegmentsRowsLayout _segmentsRowsLayout;
+        [NotNull]
+        private ISegmentsRowsLayout _segmentsRowsLayout;
 
-        private Viewport _viewport;
+        /// <summary>
+        /// The viewport
+        /// </summary>
+        [NotNull]
+        private IViewport _viewport;
 
-        public void Init(TextViewModel textViewModel)
+        /// <summary>
+        /// The scroll target
+        /// </summary>
+        [NotNull]
+        private IScrollable _scrollable;
+
+        /// <summary>
+        /// The symbols in row count
+        /// </summary>
+        private int _symbolsInRowCount;
+
+        /// <summary>
+        /// Initializes the ScrollbarViewModel.
+        /// </summary>
+        /// <param name="segmentsRowsLayoutProvider">SegmentsRowsLayout provider</param>
+        /// <param name="scrollable">Entry to scroll to</param>
+        /// <exception cref="ArgumentNullException">
+        /// </exception>
+        public void Init([NotNull] ISegmentsRowsLayoutProvider segmentsRowsLayoutProvider, [NotNull] IScrollable scrollable)
         {
-            _textViewModel = textViewModel;
-            _segmentsRowsLayoutCache = new SegmentsRowsLayoutCache(_textViewModel.Document);
+            if (segmentsRowsLayoutProvider == null) throw new ArgumentNullException(nameof(segmentsRowsLayoutProvider));
+            if (scrollable == null) throw new ArgumentNullException(nameof(scrollable));
+
+            _scrollable = scrollable;
+            SegmentsRowsLayoutProvider = segmentsRowsLayoutProvider;
             _segmentsRowsLayout = null;           
         }
 
         /// <summary>
-        ///     Updates Viewmodel on viewport change (horizontal resize)
+        /// Updates Viewmodel on viewport change (horizontal resize)
         /// </summary>
-        public void Update(Viewport viewPort)
+        /// <param name="viewport">The viewport.</param>
+        /// <param name="symbolsInRowCount">The symbols in row count.</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        public void Update([NotNull] IViewport viewport, int symbolsInRowCount)
         {
+            if (viewport == null) throw new ArgumentNullException(nameof(viewport));
+            if (symbolsInRowCount <= 0) throw new ArgumentOutOfRangeException(nameof(symbolsInRowCount));
+
+            // ReSharper disable once UnusedVariable due to async Task loose
+            var task = UpdateAsync(viewport, symbolsInRowCount);
+        }
+
+        /// <summary>
+        /// Updates Viewmodel on viewport change (horizontal resize)
+        /// </summary>
+        /// <param name="viewport">The viewport.</param>
+        /// <param name="symbolsInRowCount">The symbols in row count.</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        [return: NotNull]
+        public async Task UpdateAsync([NotNull] IViewport viewport, int symbolsInRowCount)
+        {
+            if (viewport == null) throw new ArgumentNullException(nameof(viewport));
+            if (symbolsInRowCount <= 0) throw new ArgumentOutOfRangeException(nameof(symbolsInRowCount));
+
+            _symbolsInRowCount = symbolsInRowCount;
             if (_viewport != null)
                 _viewport.EvScrollPositionChanged -= Refresh;
-            _viewport = viewPort;
+            _viewport = viewport;
             _viewport.EvScrollPositionChanged += Refresh;
-            Update();
+
+            await UpdateAsync();
         }
-        private void Update()
+
+        /// <summary>
+        /// Updates Viewmodel on viewport change (horizontal resize)
+        /// </summary>
+        /// <returns></returns>
+        [return: NotNull]
+        private async Task UpdateAsync()
         { 
-            _segmentsRowsLayout = _segmentsRowsLayoutCache.TryGet(_textViewModel.LineBreakerSymbolsInRowCount);
+            _segmentsRowsLayout = SegmentsRowsLayoutProvider.TryGet(_symbolsInRowCount);
             if (_segmentsRowsLayout != null)
                 InternalUpdate(); // We've got cached value
             else
             {// We need wait for calculation
                 IsEnabled = false;
-                var width = _textViewModel.LineBreakerSymbolsInRowCount;
-                var task = _segmentsRowsLayoutCache.GetAsync(width, OnProgress);
-                task.ContinueWith(t =>
-                                  {
-                                      _segmentsRowsLayoutCache.Unprogress(width, OnProgress);
-                                      if (t.IsCanceled)
-                                      {
-                                          if (width != _textViewModel.LineBreakerSymbolsInRowCount)
-                                              return; // task from previous width. Skip.
-                                          Update(); // May place mistake with actual task cancellation. Retry.
-                                          return;
-                                      }
-                                      if (width != _textViewModel.LineBreakerSymbolsInRowCount)
-                                          return;  // task from previous width. Skip.
-                                      _segmentsRowsLayout = t.Result;
-                                      InternalUpdate(); // We receive layout. Update scrollbar.
-                                  });
+                var symbolsInRowCount = _symbolsInRowCount; // for clsoure
+                try
+                {
+                    var segmentsRowsLayout = await SegmentsRowsLayoutProvider.GetAsync(symbolsInRowCount, OnProgress);
+                    if (symbolsInRowCount != _symbolsInRowCount)
+                        return; // task from previous symbolsInRowCount. Skip.
+                    _segmentsRowsLayout = segmentsRowsLayout;
+                    InternalUpdate(); // We receive layout. Update scrollbar.
+                }
+                catch (OperationCanceledException)
+                {
+                    if (symbolsInRowCount == _symbolsInRowCount)
+                        await UpdateAsync(); // May place mistake with actual task cancellation. Retry.
+                }
+                finally
+                {
+                    SegmentsRowsLayoutProvider.Unprogress(symbolsInRowCount, OnProgress);
+                }              
             }
         }
 
+        /// <summary>
+        /// Updates state.
+        /// </summary>
         private void InternalUpdate()
         {
-            LargeChange = _textViewModel.RowsCount;
-            Refresh(_viewport.ScrollPosition);
+            LargeChange = _viewport.RowsCount;
+            Refresh(_viewport.RowsScrollPosition);
             IsEnabled = true;
         }
 
@@ -87,14 +153,14 @@ namespace TextEditor.ViewModel
         /// <remarks>
         ///     On Scroll position change or viewport vertical resize
         /// </remarks>
-        private void Refresh(ScrollPosition scrollPosition)
+        private void Refresh(RowsScrollPosition rowsScrollPosition)
         {
             if(_segmentsRowsLayout == null)
                 return;
 
-            var segmentInfo = _segmentsRowsLayout.FindBySegment(scrollPosition.FirstSegment);
-            Value = segmentInfo.StartDocumentRowsOffset + scrollPosition.RowsBeforeScrollCount;
-            Maximum = _segmentsRowsLayout.TotalHeight - _viewport.RowsCount;
+            var segmentInfo = _segmentsRowsLayout.FindBySegment(rowsScrollPosition.FirstSegment);
+            Value = segmentInfo.StartDocumentRowsOffset + rowsScrollPosition.RowsBeforeScrollCount;
+            Maximum = _segmentsRowsLayout.TotalRowsCount - _viewport.RowsCount;
         }
 
         /// <summary>
@@ -106,13 +172,19 @@ namespace TextEditor.ViewModel
             var offset = (long)value;
             // find segment by absolute document row position
             var segmentInfo = _segmentsRowsLayout.FindByOffset(offset); 
-            _textViewModel.ScrollTo(new ScrollPosition {
+            _scrollable.ScrollTo(new RowsScrollPosition {
                 FirstSegment = segmentInfo.Segment,
                 RowsBeforeScrollCount = (int)(offset - segmentInfo.StartDocumentRowsOffset)});
         }
 
+        /// <summary>
+        /// Is scroll ready
+        /// </summary>
         private bool _isEnabled;
 
+        /// <summary>
+        /// Is scroll ready
+        /// </summary>
         public bool IsEnabled
         {
             get { return _isEnabled; }
@@ -125,7 +197,14 @@ namespace TextEditor.ViewModel
             }
         }
 
+        /// <summary>
+        /// Scroll position
+        /// </summary>
         private double _value;
+
+        /// <summary>
+        /// Scroll position
+        /// </summary>
         public double Value {
             get { return _value; }
             set
@@ -138,8 +217,14 @@ namespace TextEditor.ViewModel
             }
         }
 
+        /// <summary>
+        /// Maximum scroll position
+        /// </summary>
         private double _maxium;
 
+        /// <summary>
+        /// Maximum scroll position
+        /// </summary>
         public double Maximum
         {
             get { return _maxium; }
@@ -153,8 +238,14 @@ namespace TextEditor.ViewModel
             }
         }
 
+        /// <summary>
+        /// Scroll page size
+        /// </summary>
         private double _largeChange;
 
+        /// <summary>
+        /// Scroll page size
+        /// </summary>
         public double LargeChange
         {
             get { return _largeChange; }
@@ -168,7 +259,11 @@ namespace TextEditor.ViewModel
             }
         }
 
+        /// <summary>
+        /// Scroll calculation progress
+        /// </summary>
         private string _status;
+        
         /// <summary>
         ///     Property for displaing calculation progress
         /// </summary>

@@ -23,14 +23,14 @@ namespace TextEditor
         ///     on large segments mutch more good splitted (on paragraph) segments
         ///     too mutch small segments needs more memory
         /// </remarks>
-        public const long SegmentizerLowerThreshold = 1024 * 1024;
+        public const int SegmentizerLowerThreshold = 1024 * 1024;
         /// <summary>
         ///     upper threshold for <see cref="Segmentizer"/>
         /// </summary>
-        public const long SegmentizerUpperThreshold = 2 * 1024 * 1024;
+        public const int SegmentizerUpperThreshold = 2 * 1024 * 1024;
         /// <summary>
         ///     error threshold for <see cref="Segmentizer"/>
         /// </summary>
-        public const long SegmentizerErrorThreshold = 100 * 1024 * 1024;
+        public const int SegmentizerErrorThreshold = 100 * 1024 * 1024;
     }
 }
