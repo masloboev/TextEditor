@@ -1,6 +1,4 @@
-﻿using TextEditor.ViewModel;
-
-namespace TextEditor.Controls
+﻿namespace TextEditor.Controls
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -9,7 +7,7 @@ namespace TextEditor.Controls
     {
         public MainWindow()
         {
-            InitializeComponent();
+            InitializeComponent();            
         }
     }
 }

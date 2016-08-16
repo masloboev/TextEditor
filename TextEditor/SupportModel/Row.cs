@@ -1,4 +1,6 @@
-﻿using TextEditor.Model;
+﻿using System;
+using TextEditor.Attributes;
+using TextEditor.Model;
 
 namespace TextEditor.SupportModel
 {
@@ -7,14 +9,43 @@ namespace TextEditor.SupportModel
     /// </summary>
     public class Row
     {
-        public long BeginPosition { get; }
+        /// <summary>
+        /// The position that row begins in segment.
+        /// </summary>
+        public int BeginPosition { get; }
+
+        /// <summary>
+        /// Is row single word.
+        /// </summary>
+
         public bool IsMonoWord { get; }
+
+        /// <summary>
+        /// Is row ends with pararaph symbol
+        /// </summary>
         public bool EndsWithNewLine { get; }
 
-        private readonly long _endPosition;
+        /// <summary>
+        /// The end row position in segment
+        /// </summary>
+        private readonly int _endPosition;
 
-        public Row(char[] data, long beginPosition, long endPosition, bool isMonoWord, bool endsWithNewLine)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Row"/> class.
+        /// </summary>
+        /// <param name="data">Reference to the segments data.</param>
+        /// <param name="beginPosition">The row begin position in segment.</param>
+        /// <param name="endPosition">The row end position in segment.</param>
+        /// <param name="isMonoWord">Is row single word.</param>
+        /// <param name="endsWithNewLine">Is row ends with pararaph symbol.</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        public Row([NotNull] char[] data, int beginPosition, int endPosition, bool isMonoWord, bool endsWithNewLine)
         {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (beginPosition < 0) throw new ArgumentOutOfRangeException(nameof(beginPosition));
+            if (endPosition < beginPosition || endPosition >= data.Length) throw new ArgumentOutOfRangeException(nameof(endPosition));
+
             RowData = data;
             BeginPosition = beginPosition;
             _endPosition = endPosition;
@@ -22,10 +53,16 @@ namespace TextEditor.SupportModel
             EndsWithNewLine = endsWithNewLine;
         }
 
-        public long Length => (int)(_endPosition - BeginPosition + 1);
+        /// <summary>
+        /// Row length.
+        /// </summary>
+        public int Length => _endPosition - BeginPosition + 1;
 
+        /// <summary>
+        /// Gets the row data.
+        /// The returned array must be used only for read. Due to performance issue.
+        /// </summary>
+        [NotNull]
         public char[] RowData { get; }
-
-        public long RowOffset => BeginPosition;
     }
 }
